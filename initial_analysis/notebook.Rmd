@@ -1,0 +1,176 @@
+---
+title: "Initial analysis of second A/B test"
+author: "Mikhail Popov"
+date: "August 21, 2015"
+output:
+  html_document:
+    keep_md: yes
+    theme: united
+    toc: yes
+    toc_depth: 4
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=9, fig.height=6, fig.path='Figs/',
+                      echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+## Data
+
+The dataset was acquired by Mikhail on Friday, **August 21st, at 1:15PM**, holding a morning's worth of data (1,492,744 observations). The data was processed by Mikhail using **magrittr**, **dplyr**, **rgeolocate**, **uaparser**. Statistical analysis is done with certain functions provided by the **mosaic** and **vcd** packages.
+
+```{r}
+# setwd("initial_analysis")
+# source("data_import.R")
+load('abc_test.RData')
+```
+
+## Exploratory Data Analysis (EDA)
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+```
+
+```{r}
+ggplot(data = data, aes(x = results, fill = group)) +
+  geom_histogram() +
+  scale_x_log10() +
+  theme_fivethirtyeight()
+```
+
+```{r}
+par(mfrow = c(1, 2), mar = c(2.5, 2.5, 2.5, 0),
+    bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
+with(data, table(group2, outcome)) %>% t %>%
+  mosaicplot(col = scales::hue_pal()(2), border = NA,
+             main = "Relationship between group and outcome")
+with(data, table(group, outcome)) %>% t %>%
+  mosaicplot(col = scales::hue_pal()(3), border = NA, main = "")
+```
+
+
+```{r}
+par(mfrow = c(2, 1), mar = c(2.5, 2.5, 2.5, 0),
+    bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
+with(data, table(group2, outcome)) %>% t %>%
+  mosaicplot(shade = TRUE, border = "#3C3C3C", main = "")
+with(data, table(group, outcome)) %>% t %>%
+  mosaicplot(shade = TRUE, border = "#3C3C3C", main = "")
+```
+
+What we're seeing is that the control group (slop 0) is getting MORE nonzero results and LESS zero results than expected under independence.
+
+### Sampling Bias Assessments
+
+```{r}
+par(mar = c(2.5, 2.5, 2.5, 0),
+    bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
+with(data, {
+  table(group, browser) %>% prop.table(margin = 1)
+}) %>% t %>%
+  mosaicplot(border = "#3C3C3C", shade = TRUE,
+             main = "Browser usage in test groups")
+```
+
+
+
+```{r}
+par(mar = c(2.5, 2.5, 2.5, 0),
+    bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
+with(keep_where(data, os %in% c("Android", "Windows 7", "iOS", "Windows 8.1", "Mac OS X", "Windows XP", "Windows 10", "Windows 8", "Windows Vista")), {
+  os <- factor(sub("Windows ", "Win", as.character(os)))
+  table(group, os) %>% prop.table(margin = 1)
+}) %>% t %>%
+  mosaicplot(border = "#3C3C3C", shade = TRUE,
+             main = "OS usage in test groups")
+```
+
+In general, we see an even split in browsers and operating systems among the test groups. The plot of standardized residuals does not show significant deviations from expected values (under independence), so we are not seeing a bias.
+
+## Statistical Analysis of Association
+
+```{r, include = FALSE}
+x <- with(data, table(group, outcome)) %>% chisq.test(correct = FALSE)
+sqrt(x$statistic/nrow(data))
+```
+
+The test for independence yielided *p*-value < 0.001, which means we see sufficient evidence for association. <!-- The effect size is 0.037 which is very tiny (0.1 is considered small in literature).-->Next, we are going to take a look at the odds ratio, which will provide us with a measure of the strength and direction of the association.
+
+```{r, include = FALSE, eval = FALSE}
+## This is for personal reference...
+# OR = 0.5458355 (row 2 less likely than row 1)
+# 1/OR = 1.832054 (row 1 more likely than row 2)
+matrix(c(189, 104, 11034-189, 11037-104), nrow = 2) %>% mosaic::oddsRatio(verbose = TRUE)
+```
+
+```{r}
+localOddsRatio <- function(data, groups, response_var) {
+  with(keep_where(data, group %in% groups), {
+    group <- group %>% as.character %>% factor
+    eval(parse(text = sprintf("table(group , %s)", response_var)))
+  }) %>% mosaic::oddsRatio() %>%
+  { c(attr(., "OR"), lower = attr(., "lower.OR"), upper = attr(., "upper.OR")) }
+}
+```
+
+```{r, results = 'asis'}
+temp <- rbind(localOddsRatio(keep_where(data, user != "Spider"), c("a", "b"), "outcome"),
+              localOddsRatio(keep_where(data, user != "Spider"), c("a", "c"), "outcome"),
+              localOddsRatio(keep_where(data, user != "Spider"), c("b", "c"), "outcome"))
+rownames(temp) <- c("a vs b", "a vs c", "b vs c")
+colnames(temp) <- c("Odds Ratio", "95% CI Lower Bound", "Upper Bound")
+knitr::kable(temp, digits = 2)
+rm(temp)
+```
+
+In all of these the second group was less likely to get non-zero results than the first group (odds ratios and their 95% confidence intervals are less than 1). This is consistent with what we saw in the mosaic plot, where **c** had more zero results than **b** which had more zero results than **a**.
+
+### Quotes vs No-quotes
+
+Thursday morning queries do not appear to feature quotes.
+
+```{r, include = FALSE, eval = FALSE}
+u042s <- gregexpr("\\u042", data$queries, fixed = TRUE) %>% lapply(length) %>% unlist
+# writeLines(data$queries[u042s == 2] %>% gsub('"', '', .) %>% gsub("\\[|\\]", "\n", .),
+#            con = "~/Documents/Data/temp.txt")
+```
+
+### Prefix vs Full-text
+
+```{r}
+with(data, table(prefix_query, full_text_query))
+mosaic(outcome ~ group | prefix_query, data = data)
+```
+
+### By Project
+
+```{r}
+subtop <- function(data, group_var, top_n) {
+  
+}
+```
+
+```{r}
+mosaic(outcome ~ project | group, data = data)
+```
+
+### By Language
+
+### By Source
+
+### Linear Trend Assessment...
+
+```{r, eval = FALSE}
+library(vcd)
+source("pearson_corr.R")
+with(data, {
+  pears.cor(table(group, outcome), c(1,2,3), c(1, 0))
+})
+```
+
+With such a large M2...
+
+## Statistical Analysis of Time Taken
+
+hist(data$time_taken)

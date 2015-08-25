@@ -1,6 +1,10 @@
+# filepath_in = "~/Documents/Data/CirrusSearchUserTesting_Test2-log_20150821morning.tsv.gz"
+# filepath_out
+# setwd('initial_analysis/')
+
 library(magrittr)
 system.time({
-  test_data <- readr::read_tsv("~/Documents/Data/CirrusSearchUserTesting_Test2-log_20150821morning.tsv.gz",
+  test_data <- readr::read_tsv(filepath_in,
                                col_names = c("wiki", "group", "queries", "results", "source", "time_taken", "ip", "user_agent", "query_metadata"),
                                col_types = "ccciciccc")
 }) # gz: 6.781, ungz: 4.027
@@ -21,7 +25,7 @@ test_data$project <- sub(".*wik(.*)", "wik\\1", test_data$wiki)
 lang_should_be_proj <- test_data$language %in% c("commons", "wikidata", "foundation", "mediawiki", "incubator", "meta", "simple", "sources", "species", "testwikidata", "office", "outreach", "donate", "be_x_old", "beta")
 test_data$project[lang_should_be_proj] <- paste(test_data$language[lang_should_be_proj], test_data$project[lang_should_be_proj])
 test_data$project[test_data$project == "wiki"] <- "wikipedia"
-test_data$project %<>% sub("commons wiki", "wikicommons", .)
+test_data$project %<>% sub("commons wiki", "commons", .)
 test_data$project %<>% sub("donate wiki", "donation site", .)
 test_data$project %<>% sub("incubator", "wikimedia incubator", .)
 test_data$project %<>% sub("mediawiki wiki", "mediawiki", .)
@@ -47,9 +51,9 @@ ua_data <- uaparser::parse_agents(test_data$user_agent)
 cat("done.\n")
 test_data$user_agent <- NULL
 
-suppressPackageStartupMessages(library(dplyr))
+# suppressPackageStartupMessages(library(dplyr))
 data <- cbind(test_data, ua_data)
-data <- test_data
+# data <- test_data
 
 cat("Performing final processing steps...")
 data$outcome <- factor(data$results > 0, c(TRUE, FALSE), c("Nonzero results", "Zero results"))
@@ -71,8 +75,7 @@ order_of_cols <- union(c("wiki", "group", "group2", "results", "outcome",
 data <- data[, order_of_cols]
 cat("done.")
 
-setwd('initial_analysis/')
-save(list = "data", file = "abc_test.RData")
-cat("Finished! ^_^ Look in", getwd(), "for abc_test.RData\n")
+save(list = "data", file = filepath_out)
+cat("Finished!\n")
 
 rm(list = ls())

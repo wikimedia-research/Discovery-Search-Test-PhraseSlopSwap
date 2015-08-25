@@ -28,8 +28,13 @@ load('abc_test.RData')
 ## Exploratory Data Analysis (EDA)
 
 ```{r}
+library(magrittr)
+import::from(dplyr, select, arrange, rename, mutate, summarise, keep_where = filter)
+import::from(readr, read_csv, read_tsv, write_csv, problems)
 library(ggplot2)
 library(ggthemes)
+library(vcd) # for mosaic()
+library(mosaic) # for oddsRatio()
 ```
 
 ```{r}
@@ -146,18 +151,57 @@ mosaic(outcome ~ group | prefix_query, data = data)
 ### By Project
 
 ```{r}
-subtop <- function(data, group_var, top_n) {
-  
+subtop <- function(data, group_var, n) {
+  top_n <- head(sort(table(data[[group_var]]), decreasing = TRUE), n)
+  not_top <- !(levels(data[[group_var]]) %in% names(top_n))
+  levels(data[[group_var]])[not_top] <- "other"
+  # x <- data[data[[group_var]] %in% top_n, ]
+  # x[[group_var]] <- factor(as.character(x[[group_var]]))
+  return(data)
 }
 ```
 
 ```{r}
-mosaic(outcome ~ project | group, data = data)
+print(vcd::mosaic(outcome ~ project | group, data = subtop(data, "project", 3)))
+```
+
+Interesting! Very, very interesting.
+
+```{r}
+with(data, table(group, project)) %>% prop.table(margin = 2) %>% t %>% knitr::kable(digits = 2)
+```
+
+```{r, fig.width = 12, fig.height = 18, fig.retina = FALSE, eval = FALSE}
+top_projects <- names(head(sort(table(data$project), decreasing = TRUE), 12))
+png("~/Desktop/abc_proj.png", width = 9, height = 12, unit = "in", res = 100)
+par(mfrow = c(4, 3))
+for ( top_project in top_projects ) {
+  dplyr::filter_(data, lazyeval::interp(~project == proj, proj = top_project)) %>%
+    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_project, col = scales::hue_pal()(3), las = 1, cex.axis = 1)
+}
+dev.off()
+rm(top_project, top_projects)
 ```
 
 ### By Language
 
+```{r, fig.width = 12, fig.height = 18, fig.retina = FALSE, eval = FALSE}
+top_languages <- names(head(sort(table(data$language), decreasing = TRUE), 12))
+png("~/Desktop/abc_lang.png", width = 9, height = 12, unit = "in", res = 100)
+par(mfrow = c(4, 3), cex.lab = 1.2)
+for ( top_language in top_languages ) {
+  dplyr::filter_(data, lazyeval::interp(~language == lang, lang = top_language)) %>%
+    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_language, col = scales::hue_pal()(3), las = 1, cex.axis = 1)
+}
+dev.off()
+rm(top_language, top_languages)
+```
+
 ### By Source
+
+```{r}
+mosaic(outcome ~ source | group, data = data)
+```
 
 ### Linear Trend Assessment...
 

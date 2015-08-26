@@ -11,5 +11,5 @@ private.R
 
 # produced reports
 *.html
-*.pdf
+*/Figs/*.pdf
 .Rproj.user

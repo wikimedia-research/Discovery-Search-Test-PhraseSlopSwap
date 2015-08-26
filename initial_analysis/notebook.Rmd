@@ -17,34 +17,37 @@ knitr::opts_chunk$set(fig.width=9, fig.height=6, fig.path='Figs/',
 
 ## Data
 
-The dataset was acquired by Mikhail on Friday, **August 21st, at 1:15PM**, holding a morning's worth of data (1,492,744 observations). The data was processed by Mikhail using **magrittr**, **dplyr**, **rgeolocate**, **uaparser**. Statistical analysis is done with certain functions provided by the **mosaic** and **vcd** packages.
+The dataset was acquired by Mikhail on Friday, **August 21st, at 1:15PM**, holding a morning's worth of data (1,492,744 observations). The data was processed by Mikhail using **magrittr**, **dplyr**, **rgeolocate**, **uaparser**. Statistical analysis is done with certain functions provided by the **mosaic** and **vcd** packages. After the data was processed and filtered, 491,320 observations remained. See **initial_analysis/data_import.R** for more information.
 
 ```{r}
+library(magrittr)
+import::from(dplyr, select, arrange, rename, mutate, summarise, keep_where = filter)
+import::from(readr, read_csv, read_tsv, write_csv, problems)
 # setwd("initial_analysis")
 # source("data_import.R")
+# ^ do only once. parsing UA info takes forever
 load('abc_test.RData')
 ```
 
 ## Exploratory Data Analysis (EDA)
 
 ```{r}
-library(magrittr)
-import::from(dplyr, select, arrange, rename, mutate, summarise, keep_where = filter)
-import::from(readr, read_csv, read_tsv, write_csv, problems)
 library(ggplot2)
 library(ggthemes)
 library(vcd) # for mosaic()
-library(mosaic) # for oddsRatio()
+# library(mosaic) # for oddsRatio()
 ```
 
-```{r}
-ggplot(data = data, aes(x = results, fill = group)) +
-  geom_histogram() +
+```{r results_distributions}
+ggplot(data = data, aes(x = results + 0.1, color = group)) +
+  geom_density() +
   scale_x_log10() +
   theme_fivethirtyeight()
 ```
 
-```{r}
+There doesn't appear to be a difference in the distributions between the groups. Which is to say, we have no reason to pursue an analysis of locations.
+
+```{r group_outcome_mosaic}
 par(mfrow = c(1, 2), mar = c(2.5, 2.5, 2.5, 0),
     bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
 with(data, table(group2, outcome)) %>% t %>%
@@ -54,8 +57,9 @@ with(data, table(group, outcome)) %>% t %>%
   mosaicplot(col = scales::hue_pal()(3), border = NA, main = "")
 ```
 
+Here we see a difference in outcome between the groups. It appears the control group (a) is getting slightly better outcomes than either of the two test groups (b and c). We should also look at a version of the mosaic plot with coloring that corresponds to standardized residuals (observed-expected).
 
-```{r}
+```{r group_outcome_mosaic_residual_shaded}
 par(mfrow = c(2, 1), mar = c(2.5, 2.5, 2.5, 0),
     bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
 with(data, table(group2, outcome)) %>% t %>%
@@ -68,7 +72,9 @@ What we're seeing is that the control group (slop 0) is getting MORE nonzero res
 
 ### Sampling Bias Assessments
 
-```{r}
+Next, we take a look at how the sizes of the groups vary between the browsers and operating systems. We expect an even split.
+
+```{r bias_browser_usage, fig.width = 12, fig.height = 3}
 par(mar = c(2.5, 2.5, 2.5, 0),
     bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
 with(data, {
@@ -78,9 +84,7 @@ with(data, {
              main = "Browser usage in test groups")
 ```
 
-
-
-```{r}
+```{r bias_os_usage, fig.width = 12, fig.height = 3}
 par(mar = c(2.5, 2.5, 2.5, 0),
     bg = "#F0F0F0", col.lab = "#3C3C3C", col.axis = "#3C3C3C", col.main = "#3C3C3C")
 with(keep_where(data, os %in% c("Android", "Windows 7", "iOS", "Windows 8.1", "Mac OS X", "Windows XP", "Windows 10", "Windows 8", "Windows Vista")), {
@@ -97,10 +101,13 @@ In general, we see an even split in browsers and operating systems among the tes
 
 ```{r, include = FALSE}
 x <- with(data, table(group, outcome)) %>% chisq.test(correct = FALSE)
+print(x)
 sqrt(x$statistic/nrow(data))
 ```
 
-The test for independence yielided *p*-value < 0.001, which means we see sufficient evidence for association. <!-- The effect size is 0.037 which is very tiny (0.1 is considered small in literature).-->Next, we are going to take a look at the odds ratio, which will provide us with a measure of the strength and direction of the association.
+The test for independence yielided *p*-value < 0.001, which means we see sufficient evidence for association, although that is mostly due to sample size. Rather, it is more important to look at the (standardized) effect size: Cohen's $w$ = 0.043, which is very, very small.
+
+Next, we are going to take a look at the odds ratios, which will provide us with measures of the strength and direction of the associations.
 
 ```{r, include = FALSE, eval = FALSE}
 ## This is for personal reference...
@@ -109,7 +116,7 @@ The test for independence yielided *p*-value < 0.001, which means we see suffici
 matrix(c(189, 104, 11034-189, 11037-104), nrow = 2) %>% mosaic::oddsRatio(verbose = TRUE)
 ```
 
-```{r}
+```{r define_local_odds_ratio}
 localOddsRatio <- function(data, groups, response_var) {
   with(keep_where(data, group %in% groups), {
     group <- group %>% as.character %>% factor
@@ -119,38 +126,69 @@ localOddsRatio <- function(data, groups, response_var) {
 }
 ```
 
-```{r, results = 'asis'}
-temp <- rbind(localOddsRatio(keep_where(data, user != "Spider"), c("a", "b"), "outcome"),
-              localOddsRatio(keep_where(data, user != "Spider"), c("a", "c"), "outcome"),
-              localOddsRatio(keep_where(data, user != "Spider"), c("b", "c"), "outcome"))
+```{r table_of_odds_ratios_1, results = 'asis'}
+temp <- rbind(localOddsRatio(data, c("a", "b"), "outcome"),
+              localOddsRatio(data, c("a", "c"), "outcome"),
+              localOddsRatio(data, c("b", "c"), "outcome"))
 rownames(temp) <- c("a vs b", "a vs c", "b vs c")
 colnames(temp) <- c("Odds Ratio", "95% CI Lower Bound", "Upper Bound")
 knitr::kable(temp, digits = 2)
 rm(temp)
 ```
 
-In all of these the second group was less likely to get non-zero results than the first group (odds ratios and their 95% confidence intervals are less than 1). This is consistent with what we saw in the mosaic plot, where **c** had more zero results than **b** which had more zero results than **a**.
+In all of these the second group was less likely to get non-zero results than the first group (odds ratios and their 95% confidence intervals are less than 1). This is consistent with what we saw in the mosaic plot, where **c** had more zero results than **b** which had more zero results than **a**. But, again, much of this is due to the large sample size.
+
+### Sub-sampling
+
+#### A Priori Power Analysis Performed Post-hoc
+
+Using the power analysis software [G\*Power 3.1](http://www.gpower.hhu.de/en.html), we can calculate that to detect an effect size $w = 0.1$ (considered small) with $\alpha = 0.05$ (probability of [Type 1 error](https://en.wikipedia.org/wiki/Type_I_and_type_II_errors#Type_I_error)), 0.95 power (the ability to detect an effect where there is one), and 2 degrees of freedom (1 - number of groups), we need a sample size of **1545**.
+
+Let us take a quick detour by only looking at a randomly sampled 0.315% of the data (1545 observations).
+
+```{r group_outcome_mosaic_subsample}
+set.seed(0)
+data_sub <- dplyr::sample_n(data, 1545)
+with(data_sub, table(group, outcome)) %>% t %>%
+  mosaicplot(shade = TRUE,
+             main = "Association of group and results (outcome)",
+             sub = "(using sub-sampled 1% of the data)")
+# y <- with(data_sub, table(group, outcome)) %>%
+#   chisq.test(correct = FALSE)
+# print(y); sqrt(y$statistic/nrow(data_sub))
+```
+
+Here we get an effect size of $w = 0.015$, which is also very small but the *p*-value is 0.8377.
+
+```{r table_of_odds_ratios_2}
+temp <- rbind(localOddsRatio(data_sub, c("a", "b"), "outcome"),
+              localOddsRatio(data_sub, c("a", "c"), "outcome"),
+              localOddsRatio(data_sub, c("b", "c"), "outcome"))
+rownames(temp) <- c("a vs b", "a vs c", "b vs c")
+colnames(temp) <- c("Odds Ratio", "95% CI Lower Bound", "Upper Bound")
+knitr::kable(temp, digits = 2)
+rm(temp, data_sub)
+```
+
+Furthermore, the 95% confidence intervals for the odds ratios now include 1, reflecting the lack of assocation.
 
 ### Quotes vs No-quotes
 
+```{r check_quotes, include = FALSE, eval = FALSE}
+u0022s <- gregexpr("\\u0022", data$queries, fixed = TRUE) %>% lapply(function(x) {
+  if ( length(x) == 1 ) {
+    if ( x == -1 ) return(NA)
+  }
+  return(length(x))
+}) %>% unlist
+all(is.na(u0022s))
+```
+
 Thursday morning queries do not appear to feature quotes.
-
-```{r, include = FALSE, eval = FALSE}
-u042s <- gregexpr("\\u042", data$queries, fixed = TRUE) %>% lapply(length) %>% unlist
-# writeLines(data$queries[u042s == 2] %>% gsub('"', '', .) %>% gsub("\\[|\\]", "\n", .),
-#            con = "~/Documents/Data/temp.txt")
-```
-
-### Prefix vs Full-text
-
-```{r}
-with(data, table(prefix_query, full_text_query))
-mosaic(outcome ~ group | prefix_query, data = data)
-```
 
 ### By Project
 
-```{r}
+```{r define_subtop}
 subtop <- function(data, group_var, n) {
   top_n <- head(sort(table(data[[group_var]]), decreasing = TRUE), n)
   not_top <- !(levels(data[[group_var]]) %in% names(top_n))
@@ -162,48 +200,66 @@ subtop <- function(data, group_var, n) {
 ```
 
 ```{r}
+levels(data$outcome) <- c("1+", "0")
 print(vcd::mosaic(outcome ~ project | group, data = subtop(data, "project", 3)))
 ```
 
-Interesting! Very, very interesting.
+Interesting! Very, very interesting. By the looks of it, the group sizes vary by project.
 
-```{r}
+```{r proportions_across_projects_table}
 with(data, table(group, project)) %>% prop.table(margin = 2) %>% t %>% knitr::kable(digits = 2)
 ```
 
-```{r, fig.width = 12, fig.height = 18, fig.retina = FALSE, eval = FALSE}
-top_projects <- names(head(sort(table(data$project), decreasing = TRUE), 12))
-png("~/Desktop/abc_proj.png", width = 9, height = 12, unit = "in", res = 100)
-par(mfrow = c(4, 3))
+```{r, fig.width = 6, fig.height = 15, fig.retina = FALSE}
+top_projects <- names(head(sort(table(data$project), decreasing = TRUE), 10))
+# png("~/Desktop/abc_proj.png", width = 4, height = 10, unit = "in", res = 100)
+par(mfrow = c(5, 2))
 for ( top_project in top_projects ) {
   dplyr::filter_(data, lazyeval::interp(~project == proj, proj = top_project)) %>%
-    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_project, col = scales::hue_pal()(3), las = 1, cex.axis = 1)
+    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_project, col = scales::hue_pal()(3), las = 1)
 }
-dev.off()
+# dev.off()
 rm(top_project, top_projects)
 ```
 
+This is very grim. What we're seeing here is that certain projects (such as Commons) have vastly disproportionate group memberships. We will need to account for this when we perform a final analysis.
+
 ### By Language
 
-```{r, fig.width = 12, fig.height = 18, fig.retina = FALSE, eval = FALSE}
-top_languages <- names(head(sort(table(data$language), decreasing = TRUE), 12))
-png("~/Desktop/abc_lang.png", width = 9, height = 12, unit = "in", res = 100)
-par(mfrow = c(4, 3), cex.lab = 1.2)
+```{r, fig.width = 6, fig.height = 15, fig.retina = FALSE}
+top_languages <- names(head(sort(table(data$language), decreasing = TRUE), 10))
+# png("~/Desktop/abc_lang.png", width = 9, height = 12, unit = "in", res = 100)
+par(mfrow = c(5, 2))
 for ( top_language in top_languages ) {
   dplyr::filter_(data, lazyeval::interp(~language == lang, lang = top_language)) %>%
-    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_language, col = scales::hue_pal()(3), las = 1, cex.axis = 1)
+    with(table(group, outcome)) %>% t %>% mosaicplot(main = top_language, col = scales::hue_pal()(3), las = 1)
 }
-dev.off()
+# dev.off()
 rm(top_language, top_languages)
 ```
 
+At least languages are okay!
+
 ### By Source
 
-```{r}
+```{r outcome_source_mosaic}
 mosaic(outcome ~ source | group, data = data)
 ```
 
-### Linear Trend Assessment...
+Here we also see a problem with sampling and the source of the queries.
+
+Let's take a look at the % increase or decrease from 1/3 in the sample sizes.
+
+```{r difference_in_source_proportions}
+with(data, table(group, source)) %>%
+  prop.table(margin = 2) %>%
+  { 100*(.-(1/3))/(1/3) } %>%
+  knitr::kable(digits = 2)
+```
+
+We're seeing -17%, +20%, and even +31% differences in the proportions we observed vs proportions we expect (1/3 for each group) between the sources.
+
+<!-- ### Linear Trend Assessment... -->
 
 ```{r, eval = FALSE}
 library(vcd)
@@ -213,8 +269,29 @@ with(data, {
 })
 ```
 
-With such a large M2...
-
 ## Statistical Analysis of Time Taken
 
-hist(data$time_taken)
+```{r time_taken_boxplots, fig.width = 8, fig.height = 4}
+p1 <- ggplot(data = data, aes(y = time_taken, x = group, colour = group)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme_fivethirtyeight() +
+  ggtitle("Time taken to display results")
+set.seed(0); data_sub <- dplyr::sample_n(data, 1545)
+p2 <- ggplot(data = data_sub, aes(y = time_taken, x = group, colour = group)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme_fivethirtyeight() +
+  ggtitle("Time taken to display results\n(sub-sampled to 900 observations)")
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+rm(p1, p2)
+```
+
+Let's see if the time taken means differ between groups. Because the sample size is so huge, we are going to sub-sample it from 490,000 to 1545.
+
+```{r time_taken_anova, include = FALSE}
+lm(log10(time_taken) ~ group, data = data_sub) %>% anova()
+rm(data_sub)
+```
+
+We performed ANOVA and saw no significant difference between the groups in time taken to display results (*p* = 0.203).

@@ -1,21 +1,21 @@
 # filepath_in = "~/Documents/Data/CirrusSearchUserTesting_Test2-log_20150821morning.tsv.gz"
-# filepath_out
+# filepath_out = "abc_test.RData"
 # setwd('initial_analysis/')
 
+# Read the data in
 library(magrittr)
 system.time({
   test_data <- readr::read_tsv(filepath_in,
                                col_names = c("wiki", "group", "queries", "results", "source", "time_taken", "ip", "user_agent", "query_metadata"),
                                col_types = "ccciciccc")
-}) # gz: 6.781, ungz: 4.027
+})
 
 cat("Performing some initial processing steps...")
 test_data$source %<>% factor
 test_data$wiki %<>% factor
-test_data$group %<>% substr(13, 13) %>% factor
+test_data$group %<>% substr(13, 13) %>% factor # we just need to know 'a/b/c'
 test_data$queries <- NULL
-test_data$prefix_query <- grepl("prefix", test_data$query_metadata)
-test_data$full_text_query <- grepl("full_text", test_data$query_metadata)
+test_data %>% keep_where(grepl("full_text", test_data$query_metadata))
 test_data$query_metadata <- NULL
 cat("done.\n")
 
@@ -51,26 +51,26 @@ ua_data <- uaparser::parse_agents(test_data$user_agent)
 cat("done.\n")
 test_data$user_agent <- NULL
 
-# suppressPackageStartupMessages(library(dplyr))
 data <- cbind(test_data, ua_data)
-# data <- test_data
 
 cat("Performing final processing steps...")
-data$outcome <- factor(data$results > 0, c(TRUE, FALSE), c("Nonzero results", "Zero results"))
+# This cleans up the merged data from the UA parsing step.
+data$outcome <- factor(data$results > 0, c(TRUE, FALSE), c("1+", "0"))
 data$group2 <- factor(data$group == "a", c(TRUE, FALSE), c("control", "treatment"))
-data$user <- factor(data$device == "Spider", c(TRUE, FALSE), c("Spider", "Non-spider"))
 data$browser2 <- paste(data$browser, data$browser_major)
 data$browser[data$browser == "Other"] <- "Other (Unknown)"
 data$browser[data$browser == "CFNetwork"] <- "Apple CFNetwork framework"
 top10_browsers <- names(head(sort(table(data$browser), decreasing = TRUE), 10))
 data$browser[!(data$browser %in% top10_browsers)] <- "Other (Known)"
 data$device %<>% factor
+data %<>% keep_where(device != "Spider")
 data$os %<>% factor
 data$browser %<>% factor
+data %<>% keep_where(time_taken > 0)
+# reorder the columns in the data frame to make the important stuff show up first
 order_of_cols <- union(c("wiki", "group", "group2", "results", "outcome",
-                         "user", "source", "time_taken",
+                         "source", "time_taken",
                          "language", "project", "country",
-                         "prefix_query", "full_text_query",
                          "device", "browser", "browser2"), colnames(data))
 data <- data[, order_of_cols]
 cat("done.")
@@ -78,4 +78,4 @@ cat("done.")
 save(list = "data", file = filepath_out)
 cat("Finished!\n")
 
-rm(list = ls())
+rm(list = ls()) # cleanup! :D

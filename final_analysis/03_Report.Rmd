@@ -1,0 +1,91 @@
+---
+title: "Slop, Collaborate, and Listen"
+author: "Mikhail Popov"
+date: "August 31, 2015"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+```{r prereq, include = FALSE}
+# if ( !file.exists("Test2_ProcessedLogData/all_logs.RData") ) source("00_Scratchpad.R")
+```
+
+## Background
+
+The **slop** parameter indicates how far apart terms are allowed to be while still considering the document a match. __*Far apart*__ means: *how many times do you need to move a term in order to make the query and document match?*
+
+## Methods
+
+### Power Analysis
+
+From the preliminary analysis of the data from the morning of the test's launch, 84.2% of the control group were getting some results.
+
+We also want to be able to detect an odds ratio of at least 1.5. That is, if the slop parameter does have an impact on the search results then the test group being 1.5 times more likely to get results than the control group is the smallest impact we'd be satisfied with.
+
+We are deciding on 99% power to detect this effect and an $\alpha$ level of 0.05.
+
+```{r, echo = TRUE, eval = FALSE}
+wmf::sample_size_odds(odds_ratio = 1.5, p_control = 0.8423662,
+                      power = 0.99, conf_level = 0.95,
+                      sample_ratio = 1) # => 3950
+```
+
+After removing known automata and nonsensical queries (e.g. queries to the donation website), we will randomly sample each day's big dataset down to a smaller dataset of just 4000 observations.
+
+### Data Processing
+
+
+
+### Statistical Analysis
+
+The large sample sizes are sufficient for us to perform Chi-squared tests of independence between the group (slop parameter) and outcome (none vs some results).
+
+## Results
+
+![Data collected over time](figures/queries_over_time.png)
+
+### Full-text, no-known-automata statistics
+
+#### By project
+
+|project                  |    total|
+|:------------------------|--------:|
+|wikipedia                | 10120053|
+|wikidata                 |   411061|
+|wiktionary               |   122400|
+|commons                  |   107305|
+|wikiquote                |     7792|
+|wikibooks                |     7024|
+|simple wikipedia         |     6295|
+|wikisource               |     4338|
+|wikinews                 |     1400|
+|wikivoyage               |     1285|
+|foundation wiki          |     1245|
+|wikiversity              |     1178|
+|mediawiki                |     1158|
+|wikimedia incubator wiki |      655|
+|meta wiki                |      642|
+|wikimedia                |      523|
+|wikispecies              |      278|
+|be_x_old wiki            |      210|
+|simple wiktionary        |      111|
+|beta wikiversity         |       24|
+|outreach wiki            |       19|
+|simple wikipediaquote    |       19|
+|donation site            |       15|
+|simple wikipediabooks    |       15|
+|testwikidata             |       14|
+|office wiki              |        6|
+
+We are excluding "be_x_old wiki", "donation site", and "testwikidata" from the analysis.
+
+## Conclusion
+
+## Discussion
+
+## References
+
+* Elasticsearch: The Definitive Guide » Search in Depth » Proximity Matching » [Mixing It Up](https://www.elastic.co/guide/en/elasticsearch/guide/current/slop.html)

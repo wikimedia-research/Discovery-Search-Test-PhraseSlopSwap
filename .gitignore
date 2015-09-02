@@ -1,14 +1,11 @@
 # Private files
 *.RData
-private.R
-
+private.*
 # History files
 .Rhistory
 .Rapp.history
-
 # RStudio files
 .Rproj.user/
-
 # produced reports
 *.html
 */Figs/*.pdf

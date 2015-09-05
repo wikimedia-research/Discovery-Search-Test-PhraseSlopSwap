@@ -34,14 +34,72 @@ rm(queries)
 
 logs[[1]]$project %>% table %>% sort(decreasing = TRUE)
 
-projects_n <- lapply(logs, with, expr = as.data.frame(table(project)))
-for ( i in 1:length(projects_n) ) names(projects_n[[i]]) <- c('project', names(projects_n)[i])
-rm(i)
-import::from(dplyr, full_join)
-projects_n <- Reduce(full_join, projects_n) %>% tidyr::gather("day", "n", 2:13)
+import::from(dplyr, full_join, group_by, summarise, arrange, keep_where = filter, select)
 
-import::from(dplyr, group_by, summarise, arrange, keep_where = filter, select)
-projects_n %>% group_by(project) %>%
+# Breakdown numbers by projects:
+projects_n <- lapply(logs, with, expr = as.data.frame(table(project, group)))
+for ( i in 1:length(projects_n) ) names(projects_n[[i]]) <- c('project', 'group', names(projects_n)[i])
+rm(i)
+projects_n <- Reduce(full_join, projects_n) %>% tidyr::gather("day", "n", 3:14)
+projects_n %>% group_by(project, group) %>%
   summarise(total = sum(n, na.rm = TRUE)) %>%
-  arrange(desc(total)) %>%
+  tidyr::spread(key = "group", value = "total") %>%
+  dplyr::mutate(total = a + b + c) %>%
+  dplyr::select(c(project, total, a, b, c)) %>%
+  dplyr::mutate(a = sprintf("%.2f%%", 100*a/total),
+                b = sprintf("%.2f%%", 100*b/total),
+                c = sprintf("%.2f%%", 100*c/total)) %>%
   knitr::kable()
+rm(projects_n)
+
+projects_n <- lapply(logs_small, with, expr = as.data.frame(table(project, group)))
+for ( i in 1:length(projects_n) ) names(projects_n[[i]]) <- c('project', 'group', names(projects_n)[i])
+rm(i)
+projects_n <- Reduce(full_join, projects_n) %>% tidyr::gather("day", "n", 3:14)
+projects_n %>% group_by(project, group) %>%
+  summarise(total = sum(n, na.rm = TRUE)) %>%
+  tidyr::spread(key = "group", value = "total") %>%
+  dplyr::mutate(total = a + b + c) %>%
+  dplyr::select(c(project, total, a, b, c)) %>%
+  dplyr::mutate(a = sprintf("%.2f%%", 100*a/total),
+                b = sprintf("%.2f%%", 100*b/total),
+                c = sprintf("%.2f%%", 100*c/total)) %>%
+  knitr::kable()
+rm(projects_n)
+
+# par(mfrow = c(2, 6))
+# for ( i in 1:12 ) {
+#   mosaicplot(outcome ~ group, data = logs[[i]], col = 2:4, main = names(logs)[i])
+# }
+
+png(filename = file.path(fig.dir, "sampled_logs_mosaic.png"),
+    height = 24, width = 12, units = "in", res = 300)
+par(mfrow = c(6, 2), cex = 1.1)
+for ( i in 1:12 ) {
+  mosaicplot(outcome ~ group, data = logs_small[[i]], col = 2:4, shade = TRUE,
+             main = as.character(as.Date(names(logs_small)[i]), format = "%A %m/%d"))
+}
+dev.off()
+
+load("statistics/group_outcome_comparisons.RData")
+
+stats_all <- dplyr::bind_rows(
+  cbind(stats_AvsB, date = log_dates, `Slop Parameter Test` = "0 vs 1"),
+  cbind(stats_AvsC, date = log_dates, `Slop Parameter Test` = "0 vs 2"),
+  cbind(stats_BvsC, date = log_dates, `Slop Parameter Test` = "1 vs 2"))
+ggplot(data = stats_all, aes(x = date,
+                             y = `Odds Ratio`)) +
+  geom_hline(y = 1, size = 1.25) +
+  geom_ribbon(aes(ymin = Lower, ymax = Upper, fill = `Slop Parameter Test`), alpha = 0.25) +
+  geom_point(aes(color = `Slop Parameter Test`), size = 4) +
+  geom_line(aes(color = `Slop Parameter Test`), size = 1.1) +
+  scale_x_datetime(breaks = scales::pretty_breaks(6),
+                   labels = scales::date_format("%a, %m/%d")) +
+  annotate("text", x = lubridate::ymd("2015-08-27"), y = 2,
+           label = "Second group MORE likely than first group") +
+  annotate("text", x = lubridate::ymd("2015-08-27"), y = 0.3,
+           label = "Second group LESS likely than first group") +
+  labs(title = "Odds ratios (relative likelihoods)") +
+  theme_fivethirtyeight()
+ggsave(filename = file.path(fig.dir, "odds_ratios_over_time.png"), height = 6, width = 8)
+rm(stats_all)

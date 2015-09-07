@@ -77,22 +77,20 @@ These numbers reflect full-text, no-known-automata queries after sampling down. 
 
 ### Statistical Tests of Association
 
+```{r load_stats, include = FALSE}
+load("statistics/group_outcome_comparisons.RData")
+```
+
 In the figure below, we saw suggestions of association. Some groups had better or worse outcomes than we would have expected them under the assumption of independence. Group C, for example, almost consistently had MORE zero results (denoted by blue), while groups A and B had less (denoted by red). We performed Chi-squared tests of independence on each of the days and found evidence of statistically significant association between group membership and outcome:
 
-|Date            |p-value | Cohen's w|
-|:---------------|:-------|---------:|
-|Friday 08/21    |< 0.001 |     0.091|
-|Saturday 08/22  |< 0.001 |     0.060|
-|Sunday 08/23    |< 0.001 |     0.277|
-|Monday 08/24    |< 0.001 |     0.050|
-|Tuesday 08/25   |< 0.001 |     0.073|
-|Wednesday 08/26 |< 0.001 |     0.143|
-|Thursday 08/27  |< 0.001 |     0.119|
-|Friday 08/28    |< 0.001 |     0.095|
-|Saturday 08/29  |0.185   |     0.024|
-|Sunday 08/30    |< 0.001 |     0.058|
-|Monday 08/31    |< 0.001 |     0.081|
-|Tuesday 09/01   |0.048   |     0.032|
+```{r stats_AvsBvsC, results = 'asis'}
+stats_AvsBvsC %>%
+  cbind(Date = as.character(log_dates, format = "%A %m/%d")) %>%
+  dplyr::select(-`Chi-square Statistic`) %>%
+  dplyr::select(c(`Date`, `p-value`, `Cohen's w`)) %>%
+  dplyr::mutate(`p-value` = ifelse(`p-value` < 0.001, "< 0.001", round(`p-value`, 3))) %>%
+  knitr::kable(digits = 3)
+```
 
 Next, we looked into the strength and the direction of the relationships.
 
@@ -170,52 +168,45 @@ Final dataset after grooming. These numbers reflect the pre-downsampling dataset
 
 ## Slop 0 vs Slop 1
 
-|Date            |p-value | Cohen's w| Odds Ratio|Odds Ratio 95% CI |More or less likely than controls? |
-|:---------------|:-------|---------:|----------:|:-----------------|:----------------------------------|
-|Friday 08/21    |0.472   |      0.01|       0.93|(0.783, 1.114)    |Meh                                |
-|Saturday 08/22  |< 0.001 |      0.06|       1.38|(1.183, 1.620)    |Significantly more likely          |
-|Sunday 08/23    |0.005   |      0.04|       0.80|(0.681, 0.931)    |Significantly less likely          |
-|Monday 08/24    |< 0.001 |      0.06|       0.72|(0.603, 0.849)    |Significantly less likely          |
-|Tuesday 08/25   |0.031   |      0.03|       0.84|(0.712, 0.981)    |Significantly less likely          |
-|Wednesday 08/26 |0.001   |      0.05|       1.32|(1.115, 1.554)    |Significantly more likely          |
-|Thursday 08/27  |0.137   |      0.02|       1.14|(0.964, 1.346)    |Meh                                |
-|Friday 08/28    |< 0.001 |      0.06|       1.35|(1.143, 1.593)    |Significantly more likely          |
-|Saturday 08/29  |0.08    |      0.03|       1.16|(0.986, 1.358)    |Meh                                |
-|Sunday 08/30    |0.024   |      0.04|       1.23|(1.031, 1.461)    |Significantly more likely          |
-|Monday 08/31    |< 0.001 |      0.10|       1.75|(1.463, 2.086)    |Significantly more likely          |
-|Tuesday 09/01   |0.053   |      0.03|       0.85|(0.727, 0.999)    |Significantly less likely          |
+```{r stats_AvsB, results = 'asis'}
+stats_AvsB %>%
+  cbind(Date = as.character(log_dates, format = "%A %m/%d")) %>%
+  dplyr::select(-`Chi-square Statistic`) %>%
+  dplyr::rename(`More or less likely than controls?` = summary) %>%
+  dplyr::mutate(`Odds Ratio 95% CI` = sprintf("(%.3f, %.3f)" ,Lower, Upper),
+                `p-value` = ifelse(`p-value` < 0.001, "< 0.001", round(`p-value`, 3))) %>%
+  dplyr::select(-c(Lower, Upper)) %>%
+  dplyr::select(c(`Date`, `p-value`, `Cohen's w`, `Odds Ratio`, `Odds Ratio 95% CI`,
+                  `More or less likely than controls?`)) %>%
+  knitr::kable(digits = 2)
+```
 
 ## Slop 0 vs Slop 2
 
-|Date            |p-value | Cohen's w| Odds Ratio|Odds Ratio 95% CI |More or less likely than controls? |
-|:---------------|:-------|---------:|----------:|:-----------------|:----------------------------------|
-|Friday 08/21    |< 0.001 |      0.10|       0.59|(0.500, 0.696)    |Significantly less likely          |
-|Saturday 08/22  |< 0.001 |      0.06|       1.36|(1.167, 1.597)    |Significantly more likely          |
-|Sunday 08/23    |< 0.001 |      0.30|       0.26|(0.222, 0.296)    |Significantly less likely          |
-|Monday 08/24    |0.019   |      0.04|       0.81|(0.679, 0.963)    |Significantly less likely          |
-|Tuesday 08/25   |< 0.001 |      0.09|       0.64|(0.552, 0.752)    |Significantly less likely          |
-|Wednesday 08/26 |< 0.001 |      0.12|       0.57|(0.495, 0.666)    |Significantly less likely          |
-|Thursday 08/27  |< 0.001 |      0.11|       0.59|(0.504, 0.683)    |Significantly less likely          |
-|Friday 08/28    |< 0.001 |      0.06|       0.75|(0.640, 0.867)    |Significantly less likely          |
-|Saturday 08/29  |0.241   |      0.02|       1.10|(0.941, 1.293)    |Meh                                |
-|Sunday 08/30    |0.031   |      0.03|       0.83|(0.707, 0.980)    |Significantly less likely          |
-|Monday 08/31    |0.081   |      0.03|       1.16|(0.986, 1.366)    |Meh                                |
-|Tuesday 09/01   |0.835   |      0.00|       1.02|(0.867, 1.202)    |Meh                                |
+```{r stats_AvsC, results = 'asis'}
+stats_AvsC %>%
+  cbind(Date = as.character(log_dates, format = "%A %m/%d")) %>%
+  dplyr::select(-`Chi-square Statistic`) %>%
+  dplyr::rename(`More or less likely than controls?` = summary) %>%
+  dplyr::mutate(`Odds Ratio 95% CI` = sprintf("(%.3f, %.3f)" ,Lower, Upper),
+                `p-value` = ifelse(`p-value` < 0.001, "< 0.001", round(`p-value`, 3))) %>%
+  dplyr::select(-c(Lower, Upper)) %>%
+  dplyr::select(c(`Date`, `p-value`, `Cohen's w`, `Odds Ratio`, `Odds Ratio 95% CI`,
+                  `More or less likely than controls?`)) %>%
+  knitr::kable(digits = 2)
+```
 
 ## Slop 1 vs Slop 2
 
-|Date            |p-value | Cohen's w| Odds Ratio|Odds Ratio 95% CI |Slop 2 more or less likely than Slop 1? |
-|:---------------|:-------|---------:|----------:|:-----------------|:---------------------------------------|
-|Friday 08/21    |< 0.001 |      0.09|       0.63|(0.537, 0.743)    |Significantly less likely               |
-|Saturday 08/22  |0.9     |      0.00|       0.99|(0.837, 1.162)    |Meh                                     |
-|Sunday 08/23    |< 0.001 |      0.26|       0.32|(0.280, 0.370)    |Significantly less likely               |
-|Monday 08/24    |0.155   |      0.02|       1.13|(0.959, 1.333)    |Meh                                     |
-|Tuesday 08/25   |< 0.001 |      0.05|       0.77|(0.664, 0.896)    |Significantly less likely               |
-|Wednesday 08/26 |< 0.001 |      0.17|       0.44|(0.373, 0.510)    |Significantly less likely               |
-|Thursday 08/27  |< 0.001 |      0.13|       0.52|(0.441, 0.602)    |Significantly less likely               |
-|Friday 08/28    |< 0.001 |      0.12|       0.55|(0.470, 0.648)    |Significantly less likely               |
-|Saturday 08/29  |0.591   |      0.01|       0.95|(0.810, 1.121)    |Meh                                     |
-|Sunday 08/30    |< 0.001 |      0.07|       0.68|(0.572, 0.804)    |Significantly less likely               |
-|Monday 08/31    |< 0.001 |      0.07|       0.66|(0.554, 0.796)    |Significantly less likely               |
-|Tuesday 09/01   |0.029   |      0.03|       1.20|(1.022, 1.404)    |Significantly more likely               |
-
+```{r stats_BvsC, results = 'asis'}
+stats_BvsC %>%
+  cbind(Date = as.character(log_dates, format = "%A %m/%d")) %>%
+  dplyr::select(-`Chi-square Statistic`) %>%
+  dplyr::rename(`Slop 2 more or less likely than Slop 1?` = summary) %>%
+  dplyr::mutate(`Odds Ratio 95% CI` = sprintf("(%.3f, %.3f)" ,Lower, Upper),
+                `p-value` = ifelse(`p-value` < 0.001, "< 0.001", round(`p-value`, 3))) %>%
+  dplyr::select(-c(Lower, Upper)) %>%
+  dplyr::select(c(`Date`, `p-value`, `Cohen's w`, `Odds Ratio`, `Odds Ratio 95% CI`,
+                  `Slop 2 more or less likely than Slop 1?`)) %>%
+  knitr::kable(digits = 2)
+```

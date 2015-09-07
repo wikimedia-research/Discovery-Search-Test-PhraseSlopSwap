@@ -67,18 +67,13 @@ projects_n %>% group_by(project, group) %>%
   knitr::kable()
 rm(projects_n)
 
-# par(mfrow = c(2, 6))
-# for ( i in 1:12 ) {
-#   mosaicplot(outcome ~ group, data = logs[[i]], col = 2:4, main = names(logs)[i])
-# }
-
 png(filename = file.path(fig.dir, "sampled_logs_mosaic.png"),
     height = 24, width = 12, units = "in", res = 300)
 par(mfrow = c(6, 2), cex = 1.1)
 for ( i in 1:12 ) {
   mosaicplot(outcome ~ group, data = logs_small[[i]], col = 2:4, shade = TRUE,
              main = as.character(as.Date(names(logs_small)[i]), format = "%A %m/%d"))
-}
+}; rm(i)
 dev.off()
 
 load("statistics/group_outcome_comparisons.RData")

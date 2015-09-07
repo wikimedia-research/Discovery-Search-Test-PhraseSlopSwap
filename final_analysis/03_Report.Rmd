@@ -19,6 +19,8 @@ library(magrittr)
 
 The **slop** parameter indicates how far apart terms are allowed to be while still considering the document a match. __*Far apart*__ means: *how many times do you need to move a term in order to make the query and document match?*
 
+We hypothesized that increasing the slop parameter would yield less zero results. This was based on our intuition that less restrictive (more flexible) phrase matching should find more documents that match the terms.
+
 ## Methods
 
 We sampled 3% of the total queries over the course of 12 days.
